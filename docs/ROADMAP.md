@@ -28,9 +28,12 @@ Atomic tasks — every item cites a SPEC and maps to a PR. Agent contributors sh
 | 🔵 | Local audio + transcript history — local-only, retention cap | SPEC-014 | M |
 | 🔵 | Custom dictionary auto-learn: diff transcript vs. committed text, surface candidates with ≥3 occurrences as "Add to dictionary" nudge; export correction log as pre-filled GitHub issue template | SPEC-022 | M |
 | 🟡 | `fn` / Globe key as a bindable hotkey: bare `fn` or `fn`+key, opt-in alongside existing `⌃⇧Space`; fixes onboarding picker silently ignoring `fn` (#23) | SPEC-003a | S |
+| 🟡 | Mandarin auto-detect fix: categorical failure-mode metrics + zh corpus expansion (PR-A); token suppression + script-match retry (PR-B) — issue #17 | SPEC-021 | S |
 | ⚪ | `OllamaAgent` (local HTTP) | SPEC-006 ext | S |
 | ⚪ | `MLXLMAgent` (in-process via mlx-swift-lm) | SPEC-006 ext | M |
 | ⚪ | Active-app context: feed foreground app + focused field text into Whisper prompt bias and polish/agent prompt | — | M |
+| ⚪ | Per-app tone profiles: bundle-ID → preset (technical / formal / casual / neutral) with custom prompt field; auto-switches on hotkey fire — issue #24 | — | M; needs SPEC-007 first |
+| ⚪ | Launch at login (SMAppService toggle in Settings → General) — issue #29 | — | S |
 | ⚪ | Investigate streaming for medium-length (15–30s) audio: bench WER vs. wall-time at lower `targetChunkSeconds` | SPEC-012 ext | S |
 | ⚪ | Live partial transcripts in pill/popover while speaking | — | M |
 | ⚪ | System-audio capture (meeting mode) | — | ScreenCaptureKit |

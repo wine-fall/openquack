@@ -54,6 +54,39 @@ final class WhisperKitEngineCacheTests: XCTestCase {
         XCTAssertFalse(WhisperKitEngine.hasCompleteLocalCache(for: "medium", downloadBase: base))
     }
 
+    func testHasModelWeights_trueWhenWeightsPresentEvenWithoutTokenizer() throws {
+        let fm = FileManager.default
+        let model = WhisperKitEngine.localModelFolder(for: "tiny", downloadBase: base)
+        for name in ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"] {
+            try fm.createDirectory(at: model.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        // No tokenizer — mirrors a fresh `ensureDownloaded` (weights only).
+        XCTAssertTrue(WhisperKitEngine.hasModelWeights(for: "tiny", downloadBase: base))
+        XCTAssertFalse(WhisperKitEngine.hasCompleteLocalCache(for: "tiny", downloadBase: base))
+    }
+
+    func testHasModelWeights_falseWhenAWeightIsMissing() throws {
+        try seedCompleteCache(for: "tiny")
+        let path = WhisperKitEngine.localModelFolder(for: "tiny", downloadBase: base)
+            .appendingPathComponent("TextDecoder.mlmodelc")
+        try FileManager.default.removeItem(at: path)
+        XCTAssertFalse(WhisperKitEngine.hasModelWeights(for: "tiny", downloadBase: base))
+    }
+
+    func testDeleteModel_removesWeightsAndTokenizer() throws {
+        try seedCompleteCache(for: "tiny")
+        try seedCompleteCache(for: "base")
+        XCTAssertTrue(WhisperKitEngine.hasCompleteLocalCache(for: "tiny", downloadBase: base))
+
+        WhisperKitEngine.deleteModel("tiny", downloadBase: base)
+
+        XCTAssertFalse(WhisperKitEngine.hasModelWeights(for: "tiny", downloadBase: base))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: WhisperKitEngine.localTokenizerFolder(for: "tiny", downloadBase: base).path))
+        // Sibling untouched.
+        XCTAssertTrue(WhisperKitEngine.hasCompleteLocalCache(for: "base", downloadBase: base))
+    }
+
     func testHasCompleteLocalCache_isPerVariant() throws {
         try seedCompleteCache(for: "medium")
         XCTAssertTrue(WhisperKitEngine.hasCompleteLocalCache(for: "medium", downloadBase: base))

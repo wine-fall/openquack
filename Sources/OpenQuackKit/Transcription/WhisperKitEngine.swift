@@ -92,16 +92,28 @@ public final class WhisperKitEngine: TranscriptionEngine {
             .appendingPathComponent("whisper-\(variant)", isDirectory: true)
     }
 
-    static func hasCompleteLocalCache(for variant: String, downloadBase: URL? = nil) -> Bool {
+    /// True when the model *weights* (the three large `.mlmodelc` bundles) are
+    /// on disk. This — not `hasCompleteLocalCache` — answers "do we need the
+    /// multi-GB download?", because `WhisperKit.download` fetches only the
+    /// weights; the small tokenizer is pulled lazily at model load. The Settings
+    /// picker and the launch warm-up gate use this so a downloaded model isn't
+    /// re-offered for download just because its tokenizer hasn't been fetched yet.
+    public static func hasModelWeights(for variant: String, downloadBase: URL? = nil) -> Bool {
         let fm = FileManager.default
         let modelFolder = localModelFolder(for: variant, downloadBase: downloadBase)
         let required = ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"]
-        let modelsPresent = required.allSatisfy {
+        return required.allSatisfy {
             fm.fileExists(atPath: modelFolder.appendingPathComponent($0).path)
         }
+    }
+
+    /// Weights **and** tokenizer present — a fully loadable cache. Used by the
+    /// engine init to decide whether it can skip the network manifest call.
+    public static func hasCompleteLocalCache(for variant: String, downloadBase: URL? = nil) -> Bool {
+        guard hasModelWeights(for: variant, downloadBase: downloadBase) else { return false }
         let tokenizer = localTokenizerFolder(for: variant, downloadBase: downloadBase)
             .appendingPathComponent("tokenizer.json")
-        return modelsPresent && fm.fileExists(atPath: tokenizer.path)
+        return FileManager.default.fileExists(atPath: tokenizer.path)
     }
 
     public static func refreshModelInBackground(model: String, downloadBase: URL? = nil) async {
@@ -268,6 +280,25 @@ public final class WhisperKitEngine: TranscriptionEngine {
                 freed += directorySize(at: url)
                 try? fm.removeItem(at: url)
             }
+        }
+        return freed
+    }
+
+    /// Delete a single cached model variant — weights, tokenizer, and the
+    /// HubApi download-staging copy — to reclaim disk. Returns bytes freed.
+    /// Safe if the variant is only partially present.
+    @discardableResult
+    public static func deleteModel(_ variant: String, downloadBase: URL? = nil) -> Int64 {
+        let fm = FileManager.default
+        let cacheDir = downloadBase ?? defaultDownloadBase()
+        let weights = localModelFolder(for: variant, downloadBase: cacheDir)
+        let staging = weights.deletingLastPathComponent()
+            .appendingPathComponent(".cache/huggingface/download/openai_whisper-\(variant)", isDirectory: true)
+        var freed: Int64 = 0
+        for url in [weights, localTokenizerFolder(for: variant, downloadBase: cacheDir), staging]
+        where fm.fileExists(atPath: url.path) {
+            freed += directorySize(at: url)
+            try? fm.removeItem(at: url)
         }
         return freed
     }

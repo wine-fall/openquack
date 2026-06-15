@@ -27,6 +27,7 @@ struct OpenQuackApp {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
@@ -1185,7 +1186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         polishIdleTimer?.invalidate()
         polishIdleTimer = Timer.scheduledTimer(withTimeInterval: Self.polishIdleUnload,
                                                repeats: false) { [weak self] _ in
-            self?.unloadPolishEngine()
+            MainActor.assumeIsolated { self?.unloadPolishEngine() }
         }
     }
 
@@ -1198,22 +1199,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startElapsedTimer() {
         elapsedTimer?.invalidate()
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let elapsed = self.recorder.elapsedSeconds
-            self.appState.elapsedSeconds = elapsed
+            // Timer fires on the main run loop it was scheduled from, so the
+            // @Sendable block is already on the main actor.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let elapsed = self.recorder.elapsedSeconds
+                self.appState.elapsedSeconds = elapsed
 
-            // VAD auto-stop while recording.
-            guard self.vadEnabled,
-                  case .recording = self.appState.phase
-            else { return }
+                // VAD auto-stop while recording.
+                guard self.vadEnabled,
+                      case .recording = self.appState.phase
+                else { return }
 
-            if self.appState.currentLevel > Self.voiceThreshold {
-                self.lastVoiceAt = Date()
-            }
-            if let lastVoice = self.lastVoiceAt,
-               elapsed >= Self.vadMinDuration,
-               Date().timeIntervalSince(lastVoice) >= self.vadSilenceSeconds {
-                self.stopAndTranscribe()
+                if self.appState.currentLevel > Self.voiceThreshold {
+                    self.lastVoiceAt = Date()
+                }
+                if let lastVoice = self.lastVoiceAt,
+                   elapsed >= Self.vadMinDuration,
+                   Date().timeIntervalSince(lastVoice) >= self.vadSilenceSeconds {
+                    self.stopAndTranscribe()
+                }
             }
         }
     }
@@ -1341,7 +1346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: UNUserNotificationCenterDelegate {
     /// Show kickoff-result banners even while OpenQuack is foreground
     /// (e.g. user opened Settings) — otherwise macOS suppresses them.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
@@ -1351,7 +1356,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
     /// Click handler — opens the response window for the result whose
     /// shortID is carried in userInfo.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
